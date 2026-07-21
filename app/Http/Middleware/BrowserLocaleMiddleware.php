@@ -20,44 +20,31 @@ class BrowserLocaleMiddleware
         Request $request,
         Closure $next
     ): Response {
-        if (session()->has('locale')) {
-
-            App::setLocale(
-                session('locale')
-            );
+        if ($request->hasCookie('locale') && in_array($request->cookie('locale'), $this->supportedLocales)) {
+            App::setLocale($request->cookie('locale'));
+        } elseif (session()->has('locale')) {
+            App::setLocale(session('locale'));
         } else {
-
             foreach ($request->getLanguages() as $language) {
+                $language = substr($language, 0, 2);
 
-                $language = substr(
-                    $language,
-                    0,
-                    2
-                );
-
-                if (
-                    in_array(
-                        $language,
-                        $this->supportedLocales
-                    )
-                ) {
-
-                    session()->put(
-                        'locale',
-                        $language
-                    );
-
-                    App::setLocale(
-                        $language
-                    );
-
+                if (in_array($language, $this->supportedLocales)) {
+                    App::setLocale($language);
                     break;
                 }
             }
         }
 
+        $userAgent = $request->userAgent() ?? $request->header('User-Agent');
+        $browserInfo = LocaleVisit::parseBrowserInfo($userAgent);
+
         LocaleVisit::create([
-            'locale' => App::getLocale()
+            'locale' => App::getLocale(),
+            'user_agent' => $userAgent,
+            'browser' => $browserInfo['browser'],
+            'os' => $browserInfo['os'],
+            'device_type' => $browserInfo['device_type'],
+            'ip_address' => $request->ip()
         ]);
 
         return $next($request);
